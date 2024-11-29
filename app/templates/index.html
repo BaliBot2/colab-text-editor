@@ -14,50 +14,78 @@
     <body>
         <div id="editor-container"></div>
         <script>
-            // Initialize Quill
-            const editor = new Quill("#editor-container", {
-                theme: "snow",
+            const docId = "{{ doc_id }}";
+            const quill = new Quill('#editor-container', {
+                theme: 'snow',
             });
-
-            console.log("Quill editor initialized.");
-
-            // Extract the room name from the URL (replace this with actual room logic as needed)
-            const roomName = "default-room"; // Replace with dynamic room assignment if applicable
-
+            const Delta = Quill.import('delta');
             // Initialize WebSocket connection
             const socket = new WebSocket(
-                "ws://" + window.location.host + "/ws/editor/" + roomName + "/"
+                'ws://' + window.location.host + '/ws/editor/' + docId + '/'
             );
 
-            // Send user edits to the server
-            editor.on("text-change", function (delta, oldDelta, source) {
-                if (source === "user") {
-                    socket.send(JSON.stringify({ content: delta }));
+            // Flag to distinguish between user and server changes
+            let ignoreChange = false;
+
+            // Buffer to batch Deltas
+            let deltaBuffer = [];
+
+            // Helper: Debounce function
+            function debounce(func, wait) {
+                let timeout;
+                return function (...args) {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(() => func.apply(this, args), wait);
+                };
+            }
+
+            // Function to send batched Deltas to the server
+            function sendBatchedDeltas() {
+                if (deltaBuffer.length > 0) {
+                    const batchedDelta = deltaBuffer.reduce((acc, delta) => acc.compose(delta), new Delta());
+                    console.log('Sending Batched Delta:', batchedDelta);
+                    socket.send(JSON.stringify({ content: batchedDelta }));
+                    deltaBuffer = []; // Clear buffer after sending
+                }
+            }
+
+            // Debounced send function
+            const debouncedSend = debounce(sendBatchedDeltas, 300);
+
+            // Capture user-generated Deltas and add to buffer
+            quill.on('text-change', function (delta, oldDelta, source) {
+                if (source === 'user' && !ignoreChange) {
+                    deltaBuffer.push(delta); // Add Delta to the buffer
+                    debouncedSend(); // Send batched Deltas
                 }
             });
 
-            // Apply changes received from the server
+            // Apply incoming Deltas from the server
             socket.onmessage = function (event) {
                 const data = JSON.parse(event.data);
                 const delta = data.content;
 
-                // Apply the Delta to the editor
-                editor.updateContents(delta);
+                console.log('Applying Delta from Server:', delta);
+
+                // Prevent re-applying the Delta if it's from the sender
+                if (!ignoreChange) {
+                    ignoreChange = true;
+                    quill.updateContents(delta); // Apply the Delta
+                    ignoreChange = false;
+                }
             };
 
-            // Handle WebSocket errors
-            socket.onerror = function (error) {
-                console.error("WebSocket Error: ", error);
-            };
-
-            // Log when the WebSocket connection is closed
-            socket.onclose = function () {
-                console.log("WebSocket connection closed.");
-            };
-
-            // Log when the WebSocket connection is opened
+            // WebSocket connection logs
             socket.onopen = function () {
-                console.log("WebSocket connection established.");
+                console.log('WebSocket connection established.');
+            };
+
+            socket.onclose = function () {
+                console.log('WebSocket connection closed.');
+            };
+
+            socket.onerror = function (error) {
+                console.error('WebSocket error:', error);
             };
         </script>
     </body>

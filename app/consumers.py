@@ -25,7 +25,6 @@ class EditorConsumer(AsyncWebsocketConsumer):
         Called when the WebSocket connection is closed.
         Removes the client from the room group.
         """
-        # Remove the WebSocket from the room group
         await self.channel_layer.group_discard(
             self.room_group_name,
             self.channel_name
@@ -41,20 +40,21 @@ class EditorConsumer(AsyncWebsocketConsumer):
         try:
             # Load and update the document asynchronously
             document = ServerDocument(doc_id=self.doc_id)
-            await document.load_or_create_document()  # Asynchronously load the document
-
+            await document.load_or_create_document()
+            print(f"Recieving Delta on 2: {incoming_delta}")
             # Apply the incoming Delta to the current document state
             document.handle_changes(incoming_delta)
 
             # Save the updated state to the database asynchronously
             await document.save_to_database()
 
-            # Broadcast the conflict-free Delta to other clients
+            # Broadcast the Delta to all clients
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
                     'type': 'editor_message',
-                    'content': incoming_delta
+                    'content': incoming_delta,
+                    'sender_channel': self.channel_name,# Exclude sender
                 }
             )
         except ValueError as e:
@@ -62,11 +62,11 @@ class EditorConsumer(AsyncWebsocketConsumer):
 
     async def editor_message(self, event):
         """
-        Called when a message is sent to the group.
-        Sends the message to the WebSocket.
+        Broadcasts Deltas to all clients except the sender.
         """
-        content = event['content']
-        # Send the updated content back to the WebSocket client
-        await self.send(text_data=json.dumps({
-            'content': content
-        }))
+        if event['sender_channel'] != self.channel_name:
+            content = event['content']
+            print(f"Broadcasting Delta to Client: {content}")
+            await self.send(text_data=json.dumps({
+                'content': content
+            }))
