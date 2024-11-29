@@ -33,30 +33,32 @@ class EditorConsumer(AsyncWebsocketConsumer):
 
     async def receive(self, text_data):
         """
-        Called when a message is received from the WebSocket.
-        Updates the document content and broadcasts the changes to the group.
+        Handle incoming WebSocket messages with OT.
         """
         text_data_json = json.loads(text_data)
-        content = text_data_json['content']
+        incoming_delta = text_data_json['content']
 
-        # Log the received message (for debugging)
-        print(f"Received content for doc_id {self.doc_id}: {content}")
-
-        # Update the document content in the database
         try:
+            # Load and update the document asynchronously
             document = ServerDocument(doc_id=self.doc_id)
-            document.handle_changes(content)
-        except ValueError as e:
-            print(f"Error updating document {self.doc_id}: {e}")
+            await document.load_or_create_document()  # Asynchronously load the document
 
-        # Broadcast the updated content to the group
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                'type': 'editor_message',
-                'content': content
-            }
-        )
+            # Apply the incoming Delta to the current document state
+            document.handle_changes(incoming_delta)
+
+            # Save the updated state to the database asynchronously
+            await document.save_to_database()
+
+            # Broadcast the conflict-free Delta to other clients
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'editor_message',
+                    'content': incoming_delta
+                }
+            )
+        except ValueError as e:
+            print(f"Error processing document: {e}")
 
     async def editor_message(self, event):
         """

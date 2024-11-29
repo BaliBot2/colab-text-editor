@@ -15,21 +15,20 @@ def new_document(request):
     # automatically send to editor
     return redirect(f'/editor/{server_doc_logic.id}/')
 
-def load_document(request, doc_id: str):
-    """
-    Loads a document by its ID and renders the editor.
-    """
+
+async def load_document(request, doc_id):
     try:
-        # Validate doc
+        # Load or create the document
         server_doc_logic = ServerDocumentLogic(doc_id=doc_id)
-        print(f"Loading document: {server_doc_logic.id}")  # for debug
+        await server_doc_logic.load_or_create_document()
         return render(request, 'index.html', {
             'doc_id': server_doc_logic.id,
-            'content': server_doc_logic.data  # content currently is just a template
+            'content': server_doc_logic.state
         })
     except ValueError as e:
-        print(f"Error: {e}")  # Debugging
         raise Http404(str(e))
+
+
 
 def index(request):
     """

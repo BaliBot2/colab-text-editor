@@ -3,7 +3,9 @@
 from app.models import ServerDocument as ServerDocumentModel
 from django.core.exceptions import ObjectDoesNotExist
 from secrets import token_urlsafe
+from delta import Delta
 import re
+from asgiref.sync import sync_to_async
 
 def validate_id(id: str) -> bool:
     """
@@ -19,43 +21,52 @@ def generate_id(n_bytes=8) -> str:
     return token_urlsafe(n_bytes)
 
 class ServerDocument:
-    """
-    A server-side representation of a document.
-    Manages document creation, retrieval, and updates.
-    """
-
     def __init__(self, doc_id=None):
-        if doc_id:
-            if not validate_id(doc_id):
-                raise ValueError("Invalid document ID format.")
-            self.id = doc_id
-            try:
-                # Load the document from the database
-                db_doc = ServerDocumentModel.objects.get(doc_id=doc_id)
-                self.data = db_doc.content or {}  # Load content as dict
-            except ObjectDoesNotExist:
-                raise ValueError(f"Document with ID {doc_id} does not exist.")
-        else:
-            # Generate a new document
-            self.id = generate_id()
-            self.data = {}  # New document with empty content
+        """
+        Initializes the ServerDocument instance. If doc_id is provided, validates it.
+        """
+        self.id = doc_id or generate_id()
+        self.state = ""
 
+    @sync_to_async
+    def load_or_create_document(self):
+        """
+        Loads the document from the database or creates a new one if it does not exist.
+        """
+        if not validate_id(self.id):
+            raise ValueError("Invalid document ID format.")
+
+        db_doc, created = ServerDocumentModel.objects.get_or_create(
+            doc_id=self.id, defaults={'content': ""}
+        )
+        self.state = db_doc.content  # Load the current document state
+
+    @sync_to_async
+    def handle_changes(self, incoming_delta):
+        """
+        Apply incoming changes to the document using OT.
+        """
+        # Convert stored state and incoming Delta into Delta objects
+        current_delta = Delta(self.state)  # Current state
+        new_delta = Delta(incoming_delta)  # Incoming changes
+
+        # Merge the new Delta into the current state
+        transformed_delta = current_delta.compose(new_delta)
+
+        # Update the document state
+        self.state = transformed_delta.ops  # Save the updated state
+        self.save_to_database()
+
+    @sync_to_async
     def save_to_database(self):
         """
-        Saves or updates the document in the database.
+        Save the current state of the document to the database.
         """
-        obj, created = ServerDocumentModel.objects.update_or_create(
-            doc_id=self.id,
-            defaults={"content": self.data}
-        )
-        return obj
+        db_doc, created = ServerDocumentModel.objects.get_or_create(doc_id=self.id)
+        db_doc.content = self.state
+        db_doc.save()
 
-    def handle_changes(self, new_data):
-        """
-        Handles updates to the document's content.
-        """
-        self.data = new_data
-        self.save_to_database()
+
 
 # Document Management Functions
 def create_new_document():

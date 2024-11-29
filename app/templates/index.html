@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang="en">
     <head>
-        <title>Quill Test</title>
+        <title>Quill Collaborative Editor</title>
         <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
         <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
         <style>
             #editor-container {
-                height: 85dvh;
+                height: 85vh; /* Updated for cross-browser compatibility */
                 border: 1px solid #ccc;
             }
         </style>
@@ -20,6 +20,45 @@
             });
 
             console.log("Quill editor initialized.");
+
+            // Extract the room name from the URL (replace this with actual room logic as needed)
+            const roomName = "default-room"; // Replace with dynamic room assignment if applicable
+
+            // Initialize WebSocket connection
+            const socket = new WebSocket(
+                "ws://" + window.location.host + "/ws/editor/" + roomName + "/"
+            );
+
+            // Send user edits to the server
+            editor.on("text-change", function (delta, oldDelta, source) {
+                if (source === "user") {
+                    socket.send(JSON.stringify({ content: delta }));
+                }
+            });
+
+            // Apply changes received from the server
+            socket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                const delta = data.content;
+
+                // Apply the Delta to the editor
+                editor.updateContents(delta);
+            };
+
+            // Handle WebSocket errors
+            socket.onerror = function (error) {
+                console.error("WebSocket Error: ", error);
+            };
+
+            // Log when the WebSocket connection is closed
+            socket.onclose = function () {
+                console.log("WebSocket connection closed.");
+            };
+
+            // Log when the WebSocket connection is opened
+            socket.onopen = function () {
+                console.log("WebSocket connection established.");
+            };
         </script>
     </body>
 </html>
