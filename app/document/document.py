@@ -1,18 +1,22 @@
 # document/document.py
 
-from app.models import ServerDocument as ServerDocumentModel
-from django.core.exceptions import ObjectDoesNotExist
-from secrets import token_urlsafe
-from delta import Delta
 import re
+from secrets import token_urlsafe
+
 from asgiref.sync import sync_to_async
+from delta import Delta
+from django.core.exceptions import ObjectDoesNotExist
+
+from app.models import ServerDocument as ServerDocumentModel
+
 
 def validate_id(id: str) -> bool:
     """
     Validates that the given document ID is URL-safe.
     """
-    url_safe_pattern = r'^[a-zA-Z0-9._~-]+$'
+    url_safe_pattern = r"^[a-zA-Z0-9._~-]+$"
     return bool(re.match(url_safe_pattern, id))
+
 
 def generate_id(n_bytes=8) -> str:
     """
@@ -20,13 +24,14 @@ def generate_id(n_bytes=8) -> str:
     """
     return token_urlsafe(n_bytes)
 
+
 class ServerDocument:
     def __init__(self, doc_id=None):
         """
         Initializes the ServerDocument instance. If doc_id is provided, validates it.
         """
         self.id = doc_id or generate_id()
-        self.state = ""
+        # self.state = ""
 
     @sync_to_async
     def load_or_create_document(self):
@@ -37,7 +42,7 @@ class ServerDocument:
             raise ValueError("Invalid document ID format.")
 
         db_doc, created = ServerDocumentModel.objects.get_or_create(
-            doc_id=self.id, defaults={'content': ""}
+            doc_id=self.id, defaults={"content": ""}
         )
         self.state = db_doc.content  # Load the current document state
 
@@ -52,9 +57,11 @@ class ServerDocument:
 
         # Merge the new Delta into the current state
         transformed_delta = current_delta.compose(new_delta)
+        print("Composed State:", transformed_delta)
 
         # Update the document state
         self.state = transformed_delta.ops  # Save the updated state
+        print("State: ", self.state)
         self.save_to_database()
 
     @sync_to_async
@@ -62,10 +69,11 @@ class ServerDocument:
         """
         Save the current state of the document to the database.
         """
-        db_doc, created = ServerDocumentModel.objects.get_or_create(doc_id=self.id)
+        db_doc, created = ServerDocumentModel.objects.get_or_create(
+            doc_id=self.id
+        )
         db_doc.content = self.state
         db_doc.save()
-
 
 
 # Document Management Functions
@@ -78,6 +86,7 @@ def create_new_document():
     document.save_to_database()  # Save the document to the database
     return document.id, document.data  # Return ID and content
 
+
 def lookup_document(doc_id):
     """
     Looks up a document by its unique ID.
@@ -89,6 +98,7 @@ def lookup_document(doc_id):
         return document.data
     except ValueError as e:
         raise e
+
 
 def update_document(doc_id, new_content):
     """
