@@ -10,6 +10,34 @@
             width: 100%;
             max-width: 800px;
             margin: 20px auto;
+            position: relative;
+        }
+
+        .ql-cursor {
+            display: inline-block;
+            position: absolute;
+            height: 15px;
+            width: 2px;
+            pointer-events: none;
+            transition: transform 0.1s ease;
+            z-index: 1000;
+        }
+
+        .ql-cursor-label {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: inherit;
+            color: white;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            white-space: nowrap;
+            transform: translateX(-50%);
+        }
+
+        .ql-editor {
+            position: relative;
         }
     </style>
 </head>
@@ -17,7 +45,86 @@
     <div id="editor-container"></div>
 
     <script>
-        // Initialize Quill editor
+        // Constants and global variables
+        const TYPING_TIMEOUT = 1000; // 1 second timeout
+        const cursors = {};
+        let typingTimeout;
+        let localTypingTimeout;
+        let ws; // Declare WebSocket variable
+
+        function getRandomColor() {
+            const colors = ['#2FB344', '#E84D3F', '#3B82F6', '#F59E0B', '#8B5CF6'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        const userColor = getRandomColor();
+        const userName = 'User_' + Math.floor(Math.random() * 1000);
+
+        function createCursor(userId, color) {
+            if (cursors[userId]) {
+                clearTimeout(cursors[userId].timeout);
+            }
+            
+            const cursor = document.createElement('div');
+            cursor.classList.add('ql-cursor');
+            cursor.style.backgroundColor = color;
+            
+            const label = document.createElement('div');
+            label.classList.add('ql-cursor-label');
+            label.style.backgroundColor = color;
+            label.textContent = userId;
+            
+            cursor.appendChild(label);
+            return cursor;
+        }
+
+        function updateCursor(userId, index, color) {
+            if (index === null || index === undefined) return;
+
+            if (!cursors[userId]) {
+                cursors[userId] = {
+                    element: createCursor(userId, color),
+                    timeout: null
+                };
+                document.querySelector('.ql-editor').appendChild(cursors[userId].element);
+            } else {
+                clearTimeout(cursors[userId].timeout);
+            }
+
+            const bounds = quill.getBounds(index);
+            const cursor = cursors[userId].element;
+
+            cursor.style.left = `${bounds.left}px`;
+            cursor.style.top = `${bounds.top}px`;
+            cursor.style.height = `${bounds.height}px`;
+
+            cursors[userId].timeout = setTimeout(() => {
+                removeCursor(userId);
+            }, TYPING_TIMEOUT);
+        }
+
+        function removeCursor(userId) {
+            if (cursors[userId]) {
+                cursors[userId].element.remove();
+                delete cursors[userId];
+            }
+        }
+
+        function sendCursorPosition() {
+            const selection = quill.getSelection();
+            if (selection && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    'cursor': {
+                        userId: userName,
+                        index: selection.index + selection.length,
+                        color: userColor,
+                        isTyping: true
+                    }
+                }));
+            }
+        }
+
+        // Initialize Quill
         const quill = new Quill('#editor-container', {
             theme: 'snow',
             modules: {
@@ -29,30 +136,18 @@
             }
         });
 
-        // Get the initial content and document ID from Django template
         const initialContent = JSON.parse('{{ initial_content|escapejs }}');
         const docId = '{{ doc_id }}';
 
-        // Set initial content if it exists
         if (initialContent && initialContent.ops) {
             quill.setContents(initialContent);
         }
 
-        // Initialize WebSocket connection
+        // Initialize WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        console.log(`Attempting to connect to: ${protocol}//${window.location.host}/ws/editor/${docId}/`);
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws/editor/${docId}/`);
 
-        const ws = new WebSocket(`${protocol}//${window.location.host}/ws/editor/${docId}/`);
-
-        ws.onopen = function(event) {
-            console.log('WebSocket connection established');
-        };
-
-        ws.onerror = function(error) {
-            console.error('WebSocket error:', error);
-            console.log('WebSocket state:', ws.readyState);
-        };
-        // Handle incoming WebSocket messages
+        // WebSocket event handlers
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             
@@ -62,29 +157,56 @@
             }
 
             if (data.content) {
-                // Apply changes from other users
+                const currentIndex = quill.getSelection()?.index;
                 quill.updateContents(data.content);
+                if (currentIndex !== undefined) {
+                    quill.setSelection(currentIndex);
+                }
+            }
+
+            if (data.cursor && data.cursor.userId !== userName) {
+                if (data.cursor.isTyping) {
+                    updateCursor(data.cursor.userId, data.cursor.index, data.cursor.color);
+                }
+            }
+
+            if (data.user_left) {
+                removeCursor(data.user_left);
             }
         };
 
-        ws.onclose = function(event) {
-            console.log('WebSocket connection closed');
-        };
-
-        ws.onerror = function(error) {
-            console.error('WebSocket error:', error);
-        };
-
-        // Send changes to server
+        // Quill event handlers
         quill.on('text-change', function(delta, oldDelta, source) {
-            if (source === 'user' && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    'content': {
-                        'ops': delta.ops
-                    }
-                }));
+            if (source === 'user') {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        'content': {
+                            'ops': delta.ops
+                        }
+                    }));
+                    
+                    clearTimeout(localTypingTimeout);
+                    sendCursorPosition();
+                    
+                    localTypingTimeout = setTimeout(() => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                'cursor_remove': userName
+                            }));
+                        }
+                    }, TYPING_TIMEOUT);
+                }
             }
         });
+
+        // Clean up
+        window.onbeforeunload = function() {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    'user_left': userName
+                }));
+            }
+        };
     </script>
 </body>
 </html>
