@@ -58,7 +58,7 @@
         }
 
         const userColor = getRandomColor();
-        const userName = 'User_' + Math.floor(Math.random() * 1000);
+        const userName = '{{ user }}';
 
         function createCursor(userId, color) {
             if (cursors[userId]) {
@@ -136,7 +136,7 @@
             }
         });
 
-        const initialContent = JSON.parse('{{ initial_content|escapejs }}');
+        const initialContent = JSON.parse('{{ initial_content|escapejs }}' || '{"ops":[]}');
         const docId = '{{ doc_id }}';
 
         if (initialContent && initialContent.ops) {
