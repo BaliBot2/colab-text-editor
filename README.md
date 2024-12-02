@@ -6,7 +6,7 @@
 
 
 
-`current issues` :
+`old issues ` :
 1) collaboration only works when users have joined already, new users see fresh page
 2) Collaboration is not exactly realtime (have to adjust debounce)
 4) storing doc data
