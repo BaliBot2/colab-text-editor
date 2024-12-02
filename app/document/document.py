@@ -26,7 +26,7 @@ class ServerDocument:
         Initializes the ServerDocument instance. If doc_id is provided, validates it.
         """
         self.id = doc_id or generate_id()
-        self.state = ""
+        self.state = {"ops": []}
 
     @sync_to_async
     def load_or_create_document(self):
@@ -37,35 +37,47 @@ class ServerDocument:
             raise ValueError("Invalid document ID format.")
 
         db_doc, created = ServerDocumentModel.objects.get_or_create(
-            doc_id=self.id, defaults={'content': ""}
+            doc_id=self.id,
+            defaults={'content': {"ops": []}}
         )
-        self.state = db_doc.content  # Load the current document state
+        self.state = db_doc.content
 
     @sync_to_async
     def handle_changes(self, incoming_delta):
         """
         Apply incoming changes to the document using OT.
         """
-        # Convert stored state and incoming Delta into Delta objects
-        current_delta = Delta(self.state)  # Current state
-        new_delta = Delta(incoming_delta)  # Incoming changes
+        try:
+            # Convert stored state and incoming Delta into Delta objects
+            current_delta = Delta(self.state.get("ops", []))
+            new_delta = Delta(incoming_delta.get("ops", []))
 
-        # Merge the new Delta into the current state
-        transformed_delta = current_delta.compose(new_delta)
+            # Compose the deltas to get the new state
+            transformed_delta = current_delta.compose(new_delta)
 
-        # Update the document state
-        self.state = transformed_delta.ops  # Save the updated state
-        self.save_to_database()
+            # Update the document state with the new ops
+            self.state = {"ops": transformed_delta.ops}
+            
+            # Save to database (synchronously since we're already in a sync context)
+            self._save_to_database()
+            
+            return True
+        except Exception as e:
+            print(f"Error handling changes: {e}")
+            return False
 
-    @sync_to_async
-    def save_to_database(self):
+    def _save_to_database(self):
         """
-        Save the current state of the document to the database.
+        Internal synchronous method to save to database
         """
-        db_doc, created = ServerDocumentModel.objects.get_or_create(doc_id=self.id)
-        db_doc.content = self.state
-        db_doc.save()
-
+        try:
+            db_doc, created = ServerDocumentModel.objects.get_or_create(doc_id=self.id)
+            db_doc.content = self.state
+            db_doc.save()
+            return True
+        except Exception as e:
+            print(f"Error saving to database: {e}")
+            return False
 
 
 # Document Management Functions

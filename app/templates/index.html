@@ -1,92 +1,90 @@
-<!doctype html>
-<html lang="en">
-    <head>
-        <title>Quill Collaborative Editor</title>
-        <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
-        <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
-        <style>
-            #editor-container {
-                height: 85vh; /* Updated for cross-browser compatibility */
-                border: 1px solid #ccc;
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Collaborative Editor</title>
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style>
+        #editor-container {
+            height: 600px;
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="editor-container"></div>
+
+    <script>
+        // Initialize Quill editor
+        const quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, false] }],
+                    ['bold', 'italic', 'underline'],
+                    ['image', 'code-block']
+                ]
             }
-        </style>
-    </head>
-    <body>
-        <div id="editor-container"></div>
-        <script>
-            const docId = "{{ doc_id }}";
-            const quill = new Quill('#editor-container', {
-                theme: 'snow',
-            });
-            const Delta = Quill.import('delta');
-            // Initialize WebSocket connection
-            const socket = new WebSocket(
-                'ws://' + window.location.host + '/ws/editor/' + docId + '/'
-            );
+        });
 
-            // Flag to distinguish between user and server changes
-            let ignoreChange = false;
+        // Get the initial content and document ID from Django template
+        const initialContent = JSON.parse('{{ initial_content|escapejs }}');
+        const docId = '{{ doc_id }}';
 
-            // Buffer to batch Deltas
-            let deltaBuffer = [];
+        // Set initial content if it exists
+        if (initialContent && initialContent.ops) {
+            quill.setContents(initialContent);
+        }
 
-            // Helper: Debounce function
-            function debounce(func, wait) {
-                let timeout;
-                return function (...args) {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(() => func.apply(this, args), wait);
-                };
+        // Initialize WebSocket connection
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        console.log(`Attempting to connect to: ${protocol}//${window.location.host}/ws/editor/${docId}/`);
+
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws/editor/${docId}/`);
+
+        ws.onopen = function(event) {
+            console.log('WebSocket connection established');
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            console.log('WebSocket state:', ws.readyState);
+        };
+        // Handle incoming WebSocket messages
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                console.error('Server error:', data.error);
+                return;
             }
 
-            // Function to send batched Deltas to the server
-            function sendBatchedDeltas() {
-                if (deltaBuffer.length > 0) {
-                    const batchedDelta = deltaBuffer.reduce((acc, delta) => acc.compose(delta), new Delta());
-                    console.log('Sending Batched Delta:', batchedDelta);
-                    socket.send(JSON.stringify({ content: batchedDelta }));
-                    deltaBuffer = []; // Clear buffer after sending
-                }
+            if (data.content) {
+                // Apply changes from other users
+                quill.updateContents(data.content);
             }
+        };
 
-            // Debounced send function
-            const debouncedSend = debounce(sendBatchedDeltas, 300);
+        ws.onclose = function(event) {
+            console.log('WebSocket connection closed');
+        };
 
-            // Capture user-generated Deltas and add to buffer
-            quill.on('text-change', function (delta, oldDelta, source) {
-                if (source === 'user' && !ignoreChange) {
-                    deltaBuffer.push(delta); // Add Delta to the buffer
-                    debouncedSend(); // Send batched Deltas
-                }
-            });
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+        };
 
-            // Apply incoming Deltas from the server
-            socket.onmessage = function (event) {
-                const data = JSON.parse(event.data);
-                const delta = data.content;
-
-                console.log('Applying Delta from Server:', delta);
-
-                // Prevent re-applying the Delta if it's from the sender
-                if (!ignoreChange) {
-                    ignoreChange = true;
-                    quill.updateContents(delta); // Apply the Delta
-                    ignoreChange = false;
-                }
-            };
-
-            // WebSocket connection logs
-            socket.onopen = function () {
-                console.log('WebSocket connection established.');
-            };
-
-            socket.onclose = function () {
-                console.log('WebSocket connection closed.');
-            };
-
-            socket.onerror = function (error) {
-                console.error('WebSocket error:', error);
-            };
-        </script>
-    </body>
+        // Send changes to server
+        quill.on('text-change', function(delta, oldDelta, source) {
+            if (source === 'user' && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    'content': {
+                        'ops': delta.ops
+                    }
+                }));
+            }
+        });
+    </script>
+</body>
 </html>
