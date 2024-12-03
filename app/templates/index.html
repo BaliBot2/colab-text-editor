@@ -1,25 +1,134 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Collaborative Editor</title>
+    <title>Collaborative Editor | DocCollab</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
     <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style>
+        :root {
+            --primary: #2563eb;
+            --primary-light: #3b82f6;
+            --primary-dark: #1d4ed8;
+            --danger: #dc2626;
+            --surface: #ffffff;
+            --background: #f8fafc;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --border: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .back-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+        }
+
+        .back-btn:hover {
+            background: var(--background);
+            color: var(--text);
+        }
+
+        .editor-container {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
         #editor-container {
-            height: 600px;
-            width: 100%;
-            max-width: 800px;
-            margin: 20px auto;
-            position: relative;
+            background: var(--surface);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .ql-toolbar.ql-snow {
+            border-top-left-radius: 0.75rem;
+            border-top-right-radius: 0.75rem;
+            border-color: var(--border);
+            background: #f8fafc;
+            padding: 1rem;
+        }
+
+        .ql-container.ql-snow {
+            border-bottom-left-radius: 0.75rem;
+            border-bottom-right-radius: 0.75rem;
+            border-color: var(--border);
+            font-family: 'Inter', sans-serif;
+            height: 70vh;
+        }
+
+        .ql-editor {
+            font-size: 1rem;
+            line-height: 1.7;
+            padding: 2rem;
         }
 
         .ql-cursor {
             display: inline-block;
             position: absolute;
-            height: 15px;
             width: 2px;
             pointer-events: none;
-            transition: transform 0.1s ease;
+            transition: all 0.1s ease;
             z-index: 1000;
         }
 
@@ -27,39 +136,303 @@
             position: absolute;
             top: 100%;
             left: 0;
-            background: inherit;
-            color: white;
-            font-size: 10px;
-            padding: 1px 4px;
-            border-radius: 2px;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
             white-space: nowrap;
             transform: translateX(-50%);
+            box-shadow: 0 2px 4px rgb(0 0 0 / 0.1);
         }
 
-        .ql-editor {
+        .collaborators {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* Quill toolbar button improvements */
+        .ql-formats button {
+            width: 32px;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+        }
+
+        .ql-formats button:hover {
+            background-color: var(--border);
+        }
+
+        .ql-formats button.ql-active {
+            background-color: var(--primary-light);
+            color: white;
+        }
+        .document-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            margin: 0 1rem;
+        }
+
+        .document-title input {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text);
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            width: 300px;
+            transition: all 0.2s ease;
+        }
+
+        .document-title input:hover {
+            background: var(--background);
+        }
+
+        .document-title input:focus {
+            outline: none;
+            border-color: var(--border);
+            background: var(--surface);
+            box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.875rem;
+            border: none;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+
+        /* Share Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgb(0 0 0 / 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 1050;
+            padding: 1rem;
+            place-items: center;
+        }
+
+        .modal-content {
+            background: var(--surface);
+            border-radius: 1rem;
+            padding: 2rem;
+            width: 100%;
+            max-width: 32rem;
             position: relative;
+            animation: modal-in 0.3s ease-out;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s ease;
+        }
+
+        .close:hover {
+            background: var(--background);
+            color: var(--text);
+        }
+
+        .share-url {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .share-url input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            background: var(--background);
+            color: var(--text);
+        }
+
+        .copy-btn {
+            padding: 0.75rem 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .success-message {
+            display: none;
+            color: var(--success);
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        @keyframes modal-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+
+            .editor-container {
+                padding: 0 1rem;
+            }
+
+            .ql-toolbar.ql-snow {
+                padding: 0.75rem;
+            }
+
+            .ql-editor {
+                padding: 1rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div id="editor-container"></div>
+    <header class="header">
+        <div class="header-content">
+            <div style="display: flex; align-items: center;">
+                <a href="/" class="logo">
+                    <i class="ri-pages-line"></i>
+                    DocCollab
+                </a>
+                <div class="document-title">
+                    <input type="text" id="docTitle" placeholder="Untitled Document" value="{{ doc_title }}">
+                </div>
+            </div>
+            <div class="header-actions">
+                <div class="collaborators">
+                    <i class="ri-user-line"></i>
+                    {{ user }}
+                </div>
+                <button class="btn btn-primary" onclick="openShareModal()">
+                    <i class="ri-share-line"></i>
+                    Share
+                </button>
+                <a href="/" class="back-btn">
+                    <i class="ri-arrow-left-line"></i>
+                    Back
+                </a>
+            </div>
+        </div>
+    </header>
 
-    <script>
-        // Constants and global variables
+    <div class="editor-container">
+        <div id="editor-container"></div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="ri-share-line"></i>
+                    Share Document
+                </h3>
+                <button class="close" onclick="closeShareModal()">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="share-url">
+                <input type="text" id="shareUrl" readonly>
+                <button class="copy-btn" onclick="copyShareUrl()">
+                    <i class="ri-file-copy-line"></i>
+                </button>
+            </div>
+            <div id="copySuccess" class="success-message">
+                <i class="ri-checkbox-circle-line"></i>
+                Link copied to clipboard!
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>// Constants and global variables
         const TYPING_TIMEOUT = 1000; // 1 second timeout
         const cursors = {};
         let typingTimeout;
         let localTypingTimeout;
-        let ws; // Declare WebSocket variable
-
+        let titleTimeout;
+        let ws; // WebSocket variable
+        
+        // Get DOM elements
+        const docTitle = document.getElementById('docTitle');
+        
+        // Color handling for cursors
         function getRandomColor() {
             const colors = ['#2FB344', '#E84D3F', '#3B82F6', '#F59E0B', '#8B5CF6'];
             return colors[Math.floor(Math.random() * colors.length)];
         }
-
+        
         const userColor = getRandomColor();
         const userName = '{{ user }}';
-
+        
+        // Cursor handling functions
         function createCursor(userId, color) {
             if (cursors[userId]) {
                 clearTimeout(cursors[userId].timeout);
@@ -77,10 +450,10 @@
             cursor.appendChild(label);
             return cursor;
         }
-
+        
         function updateCursor(userId, index, color) {
             if (index === null || index === undefined) return;
-
+        
             if (!cursors[userId]) {
                 cursors[userId] = {
                     element: createCursor(userId, color),
@@ -90,26 +463,26 @@
             } else {
                 clearTimeout(cursors[userId].timeout);
             }
-
+        
             const bounds = quill.getBounds(index);
             const cursor = cursors[userId].element;
-
+        
             cursor.style.left = `${bounds.left}px`;
             cursor.style.top = `${bounds.top}px`;
             cursor.style.height = `${bounds.height}px`;
-
+        
             cursors[userId].timeout = setTimeout(() => {
                 removeCursor(userId);
             }, TYPING_TIMEOUT);
         }
-
+        
         function removeCursor(userId) {
             if (cursors[userId]) {
                 cursors[userId].element.remove();
                 delete cursors[userId];
             }
         }
-
+        
         function sendCursorPosition() {
             const selection = quill.getSelection();
             if (selection && ws.readyState === WebSocket.OPEN) {
@@ -123,8 +496,8 @@
                 }));
             }
         }
-
-        // Initialize Quill
+        
+        // Initialize Quill Editor
         const quill = new Quill('#editor-container', {
             theme: 'snow',
             modules: {
@@ -135,19 +508,83 @@
                 ]
             }
         });
-
+        
+        // Parse initial content and document ID
         const initialContent = JSON.parse('{{ initial_content|escapejs }}' || '{"ops":[]}');
         const docId = '{{ doc_id }}';
-
+        
         if (initialContent && initialContent.ops) {
             quill.setContents(initialContent);
         }
-
+        
+        // Title handling
+        docTitle.addEventListener('input', function() {
+            clearTimeout(titleTimeout);
+            titleTimeout = setTimeout(() => {
+                updateDocumentTitle(this.value);
+            }, 500);
+        });
+        
+        async function updateDocumentTitle(title) {
+            try {
+                const response = await fetch(`/update-title/${docId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ title })
+                });
+        
+                if (!response.ok) {
+                    console.error('Failed to update title');
+                }
+            } catch (error) {
+                console.error('Error updating title:', error);
+            }
+        }
+        
+        // Share modal functions
+        function openShareModal() {
+            const modal = document.getElementById('shareModal');
+            const shareUrl = document.getElementById('shareUrl');
+            shareUrl.value = `${window.location.origin}/doc/${docId}`;
+            modal.style.display = 'grid';
+        }
+        
+        function closeShareModal() {
+            document.getElementById('shareModal').style.display = 'none';
+            document.getElementById('copySuccess').style.display = 'none';
+        }
+        
+        async function copyShareUrl() {
+            const shareUrl = document.getElementById('shareUrl');
+            const successMsg = document.getElementById('copySuccess');
+            
+            try {
+                await navigator.clipboard.writeText(shareUrl.value);
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 3000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
+        }
+        
+        // Modal outside click handling
+        window.onclick = function(event) {
+            const modal = document.getElementById('shareModal');
+            if (event.target === modal) {
+                closeShareModal();
+            }
+        }
+        
         // Initialize WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws/editor/${docId}/`);
-
-        // WebSocket event handlers
+        
+        // WebSocket message handler
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
             
@@ -155,7 +592,13 @@
                 console.error('Server error:', data.error);
                 return;
             }
-
+        
+            // Handle title updates
+            if (data.title) {
+                docTitle.value = data.title;
+            }
+        
+            // Handle content updates
             if (data.content) {
                 const currentIndex = quill.getSelection()?.index;
                 quill.updateContents(data.content);
@@ -163,18 +606,20 @@
                     quill.setSelection(currentIndex);
                 }
             }
-
+        
+            // Handle cursor updates
             if (data.cursor && data.cursor.userId !== userName) {
                 if (data.cursor.isTyping) {
                     updateCursor(data.cursor.userId, data.cursor.index, data.cursor.color);
                 }
             }
-
+        
+            // Handle user leaving
             if (data.user_left) {
                 removeCursor(data.user_left);
             }
         };
-
+        
         // Quill event handlers
         quill.on('text-change', function(delta, oldDelta, source) {
             if (source === 'user') {
@@ -198,8 +643,8 @@
                 }
             }
         });
-
-        // Clean up
+        
+        // Clean up on page unload
         window.onbeforeunload = function() {
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
@@ -207,6 +652,22 @@
                 }));
             }
         };
+        
+        // Utility function for getting CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
     </script>
 </body>
 </html>
