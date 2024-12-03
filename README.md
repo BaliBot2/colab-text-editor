@@ -4,7 +4,11 @@
 
 `app` - to handle page navigations and creations of documents
 
-
+`current issues`
+-  add quill options
+-  doc persistence is a little broken
+-  share button generates faulty link, needs to take email as input
+-  "comment" and "viewer" models
 
 `old issues ` :
 1) collaboration only works when users have joined already, new users see fresh page
