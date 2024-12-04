@@ -14,6 +14,4 @@ urlpatterns = [
     path('remove-access/<int:access_id>/', views.remove_access, name='remove_access'),
     path('delete/<str:doc_id>/', views.delete_document, name='delete_document'),
 ]
-    # TODO add a path for a regular expression corresonding to a document ID
-    # TODO add a path for 404 document not found
 

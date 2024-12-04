@@ -20,23 +20,11 @@ def generate_id(n_bytes=8) -> str:
     """
     return token_urlsafe(n_bytes)
 
-# document/document.py
-from app.models import ServerDocument as ServerDocumentModel
-from django.core.exceptions import ObjectDoesNotExist
-from secrets import token_urlsafe
-import re
-from asgiref.sync import sync_to_async
-
-def validate_id(id: str) -> bool:
-    url_safe_pattern = r'^[a-zA-Z0-9._~-]+$'
-    return bool(re.match(url_safe_pattern, id))
-
-def generate_id(n_bytes=8) -> str:
-    return token_urlsafe(n_bytes)
-
-
 class ServerDocument:
     def __init__(self, doc_id=None):
+        """
+        Initializes the ServerDocument instance. If doc_id is provided, validates it.
+        """
         self.id = doc_id or generate_id()
         self.state = {"ops": []}
 
@@ -48,12 +36,11 @@ class ServerDocument:
         if not validate_id(self.id):
             raise ValueError("Invalid document ID format.")
 
-        try:
-            db_doc = ServerDocumentModel.objects.get(doc_id=self.id)
-            self.state = db_doc.content or {"ops": []}
-            print(f"Loaded document state: {self.state}")
-        except ServerDocumentModel.DoesNotExist:
-            raise ValueError("Document not found")
+        db_doc, created = ServerDocumentModel.objects.get_or_create(
+            doc_id=self.id,
+            defaults={'content': {"ops": []}}
+        )
+        self.state = db_doc.content
 
     @sync_to_async
     def handle_changes(self, incoming_delta):
@@ -61,22 +48,35 @@ class ServerDocument:
         Apply incoming changes to the document using OT.
         """
         try:
-            db_doc = ServerDocumentModel.objects.get(doc_id=self.id)
-            current_state = Delta(db_doc.content.get("ops", []))
+            # Convert stored state and incoming Delta into Delta objects
+            current_delta = Delta(self.state.get("ops", []))
             new_delta = Delta(incoming_delta.get("ops", []))
 
             # Compose the deltas to get the new state
-            new_state = current_state.compose(new_delta)
+            transformed_delta = current_delta.compose(new_delta)
+
+            # Update the document state with the new ops
+            self.state = {"ops": transformed_delta.ops}
             
-            # Update both local and database state
-            self.state = {"ops": new_state.ops}
-            db_doc.content = self.state
-            db_doc.save()
+            # Save to database (synchronously since we're already in a sync context)
+            self._save_to_database()
             
-            print(f"Applied changes to document {self.id}. New state: {self.state}")
             return True
         except Exception as e:
             print(f"Error handling changes: {e}")
+            return False
+
+    def _save_to_database(self):
+        """
+        Internal synchronous method to save to database
+        """
+        try:
+            db_doc, created = ServerDocumentModel.objects.get_or_create(doc_id=self.id)
+            db_doc.content = self.state
+            db_doc.save()
+            return True
+        except Exception as e:
+            print(f"Error saving to database: {e}")
             return False
 
 
