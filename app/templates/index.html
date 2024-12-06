@@ -541,6 +541,10 @@
                     <i class="ri-user-line"></i>
                     {{ user }}
                 </div>
+                <button class="btn btn-primary" onclick="downloadAsTxt()">
+                    <i class="ri-download-line"></i>
+                    Save Doc
+                </button>
                 {% if request.user == document.owner %}
                     <button class="btn btn-primary" onclick="openShareModal()">
                         <i class="ri-share-line"></i>
@@ -632,6 +636,27 @@
         quill.setContents(initialContent);
     }
 
+    function downloadAsTxt() {
+    // Get the text content from Quill editor
+    const text = quill.getText();
+    const title = document.getElementById('docTitle').value || 'Untitled Document';
+    
+    // Create a blob with the text content
+    const blob = new Blob([text], { type: 'text/plain' });
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${title}.txt`;
+    
+    // Append link to document, click it, and remove it
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the URL
+    URL.revokeObjectURL(link.href);
+}
     // Title handling functions
     async function updateTitle() {
         if (!canEdit) return; // Prevent title updates for viewers
