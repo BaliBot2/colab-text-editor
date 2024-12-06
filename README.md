@@ -8,7 +8,6 @@ A web-based collaborative text editor built with Django and Django Channels. Thi
 
 - Real-time text collaboration using WebSockets
 - User authentication for secure document access
-- Document version history
 - Role-based access control for users (e.g., read-only vs. edit permissions)
 
 ---
