@@ -1,4 +1,4 @@
-# Update consumers.py to handle cursor messages
+# consumers.py
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from app.document.document import ServerDocument
@@ -9,12 +9,14 @@ class EditorConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.doc_id = self.scope['url_route']['kwargs']['doc_id']
         self.room_group_name = f'editor_{self.doc_id}'
+        self.user_group_name = f'user_{self.scope["user"].username}'  # Add personal group
         self.username = self.scope["user"].username
         
         if not self.scope["user"].is_authenticated:
             await self.close()
             return
             
+        self.can_edit = await self.has_edit_access()
         if not await self.has_document_access():
             await self.close()
             return
@@ -22,11 +24,31 @@ class EditorConsumer(AsyncWebsocketConsumer):
         self.document = ServerDocument(doc_id=self.doc_id)
         await self.document.load_or_create_document()
 
+        # Join both the document group and personal group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
         )
+        await self.channel_layer.group_add(
+            self.user_group_name,
+            self.channel_name
+        )
+        
         await self.accept()
+        await self.send(text_data=json.dumps({
+            'type': 'access_level',
+            'canEdit': self.can_edit
+        }))
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+        await self.channel_layer.group_discard(
+            self.user_group_name,
+            self.channel_name
+        )
 
     async def receive(self, text_data):
         try:
@@ -34,7 +56,6 @@ class EditorConsumer(AsyncWebsocketConsumer):
             message_type = data.get('type')
             
             if message_type == 'cursor':
-                # Handle cursor position updates
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
@@ -44,8 +65,22 @@ class EditorConsumer(AsyncWebsocketConsumer):
                         'sender_channel': self.channel_name,
                     }
                 )
+            elif message_type == 'check_permissions':
+                # Handle permission check requests
+                new_can_edit = await self.has_edit_access()
+                await self.send(text_data=json.dumps({
+                    'type': 'access_level',
+                    'canEdit': new_can_edit
+                }))
             else:
-                # Handle regular document changes
+                # Recheck permissions before handling changes
+                self.can_edit = await self.has_edit_access()
+                if not self.can_edit:
+                    await self.send(text_data=json.dumps({
+                        'error': 'You do not have permission to edit this document'
+                    }))
+                    return
+                    
                 incoming_delta = data.get('content')
                 if incoming_delta:
                     success = await self.document.handle_changes(incoming_delta)
@@ -63,7 +98,7 @@ class EditorConsumer(AsyncWebsocketConsumer):
                         await self.send(text_data=json.dumps({
                             'error': 'Failed to process changes'
                         }))
-                
+
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
                 'error': 'Invalid JSON format'
@@ -89,6 +124,12 @@ class EditorConsumer(AsyncWebsocketConsumer):
                 'content': content
             }))
 
+    async def permissions_updated(self, event):
+        """Handle permission update notifications"""
+        await self.send(text_data=json.dumps({
+            'type': 'permissions_updated'
+        }))
+
     @database_sync_to_async
     def has_document_access(self):
         try:
@@ -97,5 +138,19 @@ class EditorConsumer(AsyncWebsocketConsumer):
             return (document.visibility == 'PUBLIC' or 
                    document.owner == user or 
                    DocumentAccess.objects.filter(document=document, user=user).exists())
+        except Exception:
+            return False
+            
+    @database_sync_to_async
+    def has_edit_access(self):
+        try:
+            document = ServerDocumentModel.objects.get(doc_id=self.doc_id)
+            user = self.scope["user"]
+            return (document.owner == user or 
+                   DocumentAccess.objects.filter(
+                       document=document, 
+                       user=user,
+                       access_type='EDITOR'
+                   ).exists())
         except Exception:
             return False

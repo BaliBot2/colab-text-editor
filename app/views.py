@@ -3,6 +3,8 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_http_methods
@@ -25,39 +27,49 @@ def check_access(document, user):
             document.owner == user or 
             DocumentAccess.objects.filter(document=document, user=user).exists())
 
+@sync_to_async
+def check_edit_access(document, user):
+    return (document.owner == user or 
+            DocumentAccess.objects.filter(
+                document=document, 
+                user=user,
+                access_type='EDITOR'
+            ).exists())
 
-# views.py
-@login_required(login_url='login')
+
+@login_required
 async def load_document(request, doc_id):
     try:
-        # Get document from database
         document = await get_document(doc_id)
         
-        # Check permissions
+        # Check basic access
         has_access = await check_access(document, request.user)
         if not has_access:
             return HttpResponse('Unauthorized', status=403)
+        
+        # Check edit access
+        can_edit = await check_edit_access(document, request.user)
         
         # Load document logic
         server_doc_logic = ServerDocumentLogic(doc_id=doc_id)
         await server_doc_logic.load_or_create_document()
         
-        # Get content and ensure it has proper structure
         content = document.content if document.content else {"ops": []}
-        
-        # Serialize for template
         initial_content = json.dumps(content, cls=DjangoJSONEncoder)
         
         return render(request, 'index.html', {
             'doc_id': doc_id,
             'initial_content': initial_content,
             'user': request.user.username,
-            'doc_title': document.title  # Add this line
+            'doc_title': document.title,
+            'can_edit': can_edit  # Add this to template context
         })
     except ServerDocument.DoesNotExist:
         raise Http404("Document not found")
     except ValueError as e:
         raise Http404(str(e))
+
+
 @login_required(login_url='login')
 def home(request):
     """
@@ -162,14 +174,22 @@ def share_document(request, doc_id):
             defaults={'access_type': access_type}
         )
         
+        # Notify the user about permission changes
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'user_{user.username}',
+            {
+                'type': 'permissions_updated'
+            }
+        )
+        
         return JsonResponse({'status': 'success'})
     except ServerDocument.DoesNotExist:
         return JsonResponse({'error': 'Document not found'}, status=404)
     except User.DoesNotExist:
         return JsonResponse({'error': 'User not found'}, status=404)
     except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
+        return JsonResponse({'error': str(e)}, status=500)
 @login_required
 def get_shared_users(request, doc_id):
     try:
@@ -210,25 +230,26 @@ def delete_document(request, doc_id):
         return JsonResponse({'error': str(e)}, status=500)
     
 
-# views.py
 @login_required
 @require_http_methods(["POST"])
 def update_title(request, doc_id):
     try:
-        # Get document and verify access
         document = ServerDocument.objects.get(doc_id=doc_id)
+        # Check for edit permissions
         if not (document.owner == request.user or 
-                DocumentAccess.objects.filter(document=document, user=request.user, access_type='EDITOR').exists()):
+                DocumentAccess.objects.filter(
+                    document=document, 
+                    user=request.user, 
+                    access_type='EDITOR'
+                ).exists()):
             return JsonResponse({'error': 'Unauthorized'}, status=403)
         
-        # Get title from request data
         data = json.loads(request.body)
         new_title = data.get('title', '').strip()
         
         if not new_title:
             new_title = "Untitled Document"
             
-        # Update the document title
         document.title = new_title
         document.save()
         
