@@ -312,7 +312,7 @@
     <header class="header">
         <div class="header-content">
             <a href="/" class="logo">
-                <i class="ri-pages-line"></i> BaliDocs
+                <i class="ri-pages-line"></i> PPDocs
             </a>
             <div class="user-info">
                 <span>Welcome, {{ user.username }}</span>
@@ -332,54 +332,54 @@
 
         <div class="documents-grid">
             {% for doc in documents %}
-            <div class="document-card">
-                <div class="document-content" onclick="window.location.href='{% url 'load_document' doc.doc_id %}'">
-                    <div class="document-title">
-                        <i class="ri-file-text-line"></i>
-                        {% if doc.content.ops|length > 0 %}
-                            {{ doc.content.ops.0.insert|truncatechars:30 }}
-                        {% else %}
-                            Untitled Document
-                        {% endif %}
-                    </div>
-                    <div class="document-meta">
-                        <div>
-                            <i class="ri-calendar-line"></i>
-                            Created: {{ doc.created_at|date:"M d, Y" }}
-                        </div>
-                        <div>
-                            <i class="ri-time-line"></i>
-                            Last modified: {{ doc.updated_at|date:"M d, Y" }}
-                        </div>
-                        <div>
-                            <i class="ri-user-line"></i>
-                            {% if doc.owner == user %}
-                                Owner
+                <div class="document-card">
+                    <div class="document-content" onclick="window.location.href='{% url 'load_document' doc.doc_id %}'">
+                        <div class="document-title">
+                            <i class="ri-file-text-line"></i>
+                            {% if doc.title %}
+                                {{ doc.title }}
                             {% else %}
-                                Shared by {{ doc.owner.username }}
+                                Untitled Document
                             {% endif %}
                         </div>
+                        <div class="document-meta">
+                            <div>
+                                <i class="ri-calendar-line"></i>
+                                Created: {{ doc.created_at|date:"M d, Y" }}
+                            </div>
+                            <div>
+                                <i class="ri-time-line"></i>
+                                Last modified: {{ doc.updated_at|date:"M d, Y" }}
+                            </div>
+                            <div>
+                                <i class="ri-user-line"></i>
+                                {% if doc.owner == user %}
+                                    Owner
+                                {% else %}
+                                    Shared by {{ doc.owner.username }}
+                                {% endif %}
+                            </div>
+                        </div>
                     </div>
+                    {% if doc.owner == user %}
+                        <div class="document-actions">
+                            <button class="btn btn-primary" onclick="openShareModal('{{ doc.doc_id }}', event)">
+                                <i class="ri-share-line"></i>
+                                Share
+                            </button>
+                            <button class="btn btn-danger" onclick="openDeleteModal('{{ doc.doc_id }}', event)">
+                                <i class="ri-delete-bin-line"></i>
+                                Delete
+                            </button>
+                        </div>
+                    {% endif %}
                 </div>
-                {% if doc.owner == user %}
-                    <div class="document-actions">
-                        <button class="btn btn-primary" onclick="openShareModal('{{ doc.doc_id }}', event)">
-                            <i class="ri-share-line"></i>
-                            Share
-                        </button>
-                        <button class="btn btn-danger" onclick="openDeleteModal('{{ doc.doc_id }}', event)">
-                            <i class="ri-delete-bin-line"></i>
-                            Delete
-                        </button>
-                    </div>
-                {% endif %}
-            </div>
             {% empty %}
-            <div class="empty-state">
-                <i class="ri-file-add-line"></i>
-                <h3>No documents yet</h3>
-                <p>Create your first document to get started!</p>
-            </div>
+                <div class="empty-state">
+                    <i class="ri-file-add-line"></i>
+                    <h3>No documents yet</h3>
+                    <p>Create your first document to get started!</p>
+                </div>
             {% endfor %}
         </div>
     </div>

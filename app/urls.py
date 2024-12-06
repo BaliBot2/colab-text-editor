@@ -13,5 +13,6 @@ urlpatterns = [
     path('shared-users/<str:doc_id>/', views.get_shared_users, name='get_shared_users'),
     path('remove-access/<int:access_id>/', views.remove_access, name='remove_access'),
     path('delete/<str:doc_id>/', views.delete_document, name='delete_document'),
+    path('update-title/<str:doc_id>/', views.update_title, name='update_title'),
 ]
 

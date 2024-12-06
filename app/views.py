@@ -26,6 +26,7 @@ def check_access(document, user):
             DocumentAccess.objects.filter(document=document, user=user).exists())
 
 
+# views.py
 @login_required(login_url='login')
 async def load_document(request, doc_id):
     try:
@@ -46,12 +47,12 @@ async def load_document(request, doc_id):
         
         # Serialize for template
         initial_content = json.dumps(content, cls=DjangoJSONEncoder)
-        print(f"Loading document {doc_id} with content: {initial_content}")
         
         return render(request, 'index.html', {
             'doc_id': doc_id,
             'initial_content': initial_content,
-            'user': request.user.username
+            'user': request.user.username,
+            'doc_title': document.title  # Add this line
         })
     except ServerDocument.DoesNotExist:
         raise Http404("Document not found")
@@ -82,6 +83,7 @@ def new_document(request):
     server_doc_logic = ServerDocumentLogic()
     document = ServerDocument.objects.create(
         doc_id=server_doc_logic.id,
+        title="Untitled Document",  
         content={"ops": []},
         owner=request.user,
         visibility='PRIVATE'
@@ -129,7 +131,7 @@ def register_view(request):
             
         user = User.objects.create_user(username=username, password=password, email=email)
         login(request, user)
-        return redirect('index')
+        return redirect('home')
         
     return render(request, 'register.html')
 
@@ -204,5 +206,36 @@ def delete_document(request, doc_id):
         return JsonResponse({'status': 'success'})
     except ServerDocument.DoesNotExist:
         return JsonResponse({'error': 'Document not found or you do not have permission to delete it'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    
+
+# views.py
+@login_required
+@require_http_methods(["POST"])
+def update_title(request, doc_id):
+    try:
+        # Get document and verify access
+        document = ServerDocument.objects.get(doc_id=doc_id)
+        if not (document.owner == request.user or 
+                DocumentAccess.objects.filter(document=document, user=request.user, access_type='EDITOR').exists()):
+            return JsonResponse({'error': 'Unauthorized'}, status=403)
+        
+        # Get title from request data
+        data = json.loads(request.body)
+        new_title = data.get('title', '').strip()
+        
+        if not new_title:
+            new_title = "Untitled Document"
+            
+        # Update the document title
+        document.title = new_title
+        document.save()
+        
+        return JsonResponse({'status': 'success', 'title': new_title})
+    except ServerDocument.DoesNotExist:
+        return JsonResponse({'error': 'Document not found'}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)

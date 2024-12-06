@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 
 class ServerDocument(models.Model):
     doc_id = models.CharField(max_length=255, unique=True, primary_key=True)
+    title = models.CharField(max_length=255, default="Untitled Document")  
     content = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

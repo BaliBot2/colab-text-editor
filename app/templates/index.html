@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Collaborative Editor | BaliDocs</title>
+    <title>Collaborative Editor | PPDocs</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -116,6 +116,33 @@
     margin-bottom: 0.5rem;
 }
 
+.document-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .title-display {
+            font-size: 1.2rem;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .title-display:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        .title-input {
+            font-size: 1.2rem;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        .title-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
 .user-item .remove-user {
     cursor: pointer;
     color: var(--danger);
@@ -449,38 +476,44 @@
         }
     </style>
 </head>
-<body>
-    <header class="header">
-        <div class="header-content">
-            <div style="display: flex; align-items: center;">
-                <a href="/" class="logo">
-                    <i class="ri-pages-line"></i>
-                    BaliDocs
-                </a>
-                <div class="document-title">
-                    <input type="text" id="docTitle" placeholder="Untitled Document" value="{{ doc_title }}">
-                </div>
-            </div>
-            <div class="header-actions">
-                <div class="collaborators">
-                    <i class="ri-user-line"></i>
-                    {{ user }}
-                </div>
-                <button class="btn btn-primary" onclick="openShareModal()">
-                    <i class="ri-share-line"></i>
-                    Share
-                </button>
-                <a href="/" class="back-btn">
-                    <i class="ri-arrow-left-line"></i>
-                    Back
-                </a>
+<body>    <header class="header">
+    <div class="header-content">
+        <div style="display: flex; align-items: center;">
+            <a href="/" class="logo">
+                <i class="ri-pages-line"></i>
+                PPDocs
+            </a>
+            <div class="document-title">
+                <input 
+                    type="text" 
+                    id="docTitle" 
+                    placeholder="Untitled Document" 
+                    value="{{ doc_title }}"
+                    onblur="updateTitle()"
+                    onkeypress="handleTitleKeyPress(event)"
+                >
             </div>
         </div>
-    </header>
-
-    <div class="editor-container">
-        <div id="editor-container"></div>
+        <div class="header-actions">
+            <div class="collaborators">
+                <i class="ri-user-line"></i>
+                {{ user }}
+            </div>
+            <button class="btn btn-primary" onclick="openShareModal()">
+                <i class="ri-share-line"></i>
+                Share
+            </button>
+            <a href="/" class="back-btn">
+                <i class="ri-arrow-left-line"></i>
+                Back
+            </a>
+        </div>
     </div>
+</header>
+
+<div class="editor-container">
+    <div id="editor-container"></div>
+</div>
 
 <!-- Share Modal -->
 <div id="shareModal" class="modal">
@@ -494,31 +527,32 @@
                 <i class="ri-close-line"></i>
             </button>
         </div>
-
         <div class="share-form">
             <div class="form-group">
                 <input type="email" id="shareEmail" placeholder="Enter email address" class="share-input">
             </div>
-            
+           
             <div class="form-group">
                 <select id="accessType" class="share-select">
-                    <option value="editor">Can Edit</option>
-                    <option value="viewer">Can View</option>
+                    <option value="EDITOR">Can Edit</option>
+                    <option value="VIEWER">Can View</option>
                 </select>
             </div>
-
             <button onclick="shareDocument()" class="btn btn-primary share-btn">
                 <i class="ri-share-line"></i>
                 Share
             </button>
         </div>
-        
+       
         <div id="sharedUsers" class="users-list">
             <!-- Shared users will be populated here -->
         </div>
     </div>
 </div>
+
+
 <script>
+
     // Constants and global variables
 let currentVersion = 0;
 let ws; // WebSocket variable
@@ -529,9 +563,35 @@ const quill = new Quill('#editor-container', {
     theme: 'snow',
     modules: {
         toolbar: [
-            [{ 'header': [1, 2, false] }],
-            ['bold', 'italic', 'underline'],
-            ['image', 'code-block']
+            // Text formatting
+            [{ 'size': ['small', false, 'large', 'huge'] }],
+            [{ 'font': [] }],
+            ['bold', 'italic', 'underline', 'strike'],    // toggled buttons
+            
+            // Text styling
+            ['blockquote', 'code-block', 'image'],
+            
+            // Lists
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'script': 'sub'}, { 'script': 'super' }],  // superscript/subscript
+            
+            // Indentation
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            
+            // Text direction
+            [{ 'direction': 'rtl' }],
+            
+            // Font
+
+            
+            // Text alignment
+            [{ 'align': [] }],
+            
+            // Colors
+            [{ 'color': [] }, { 'background': [] }],
+            
+            // Clear formatting
+            ['clean']
         ]
     }
 });
@@ -542,6 +602,50 @@ const docId = '{{ doc_id }}';
 
 if (initialContent && initialContent.ops) {
     quill.setContents(initialContent);
+}
+
+// Title handling functions
+async function updateTitle() {
+    const titleInput = document.getElementById('docTitle');
+    const newTitle = titleInput.value.trim();
+    
+    if (!newTitle) {
+        titleInput.value = 'Untitled Document';
+        document.title = 'Untitled Document - PPDocs';
+        return;
+    }
+
+    try {
+        const response = await fetch(`/update-title/${docId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ title: newTitle })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok) {
+            document.title = `${newTitle} - PPDocs`;
+            titleInput.value = newTitle;
+        } else {
+            console.error('Failed to update title:', data.error);
+            // Optionally revert to old title
+            titleInput.value = document.title.replace(' - PPDocs', '');
+        }
+    } catch (error) {
+        console.error('Error updating title:', error);
+        titleInput.value = document.title.replace(' - PPDocs', '');
+    }
+}
+
+function handleTitleKeyPress(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        event.target.blur(); // This will trigger the onblur event
+    }
 }
 
 // Share modal functions
@@ -672,15 +776,6 @@ quill.on('text-change', function(delta, oldDelta, source) {
     }
 });
 
-// Clean up on page unload
-window.onbeforeunload = function() {
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            'type': 'disconnect'
-        }));
-    }
-};
-
 // Utility function for getting CSRF token
 function getCookie(name) {
     let cookieValue = null;
@@ -696,6 +791,24 @@ function getCookie(name) {
     }
     return cookieValue;
 }
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    const titleInput = document.getElementById('docTitle');
+    if (!titleInput.value) {
+        titleInput.value = 'Untitled Document';
+    }
+    document.title = `${titleInput.value} - PPDocs`;
+});
+
+// Clean up on page unload
+window.onbeforeunload = function() {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            'type': 'disconnect'
+        }));
+    }
+};
 </script>
 </body>
 </html>
