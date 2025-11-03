@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Collaborative Editor | PPDocs</title>
+    <title>Collaborative Editor | BaliDocs</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -510,7 +510,7 @@
             <div style="display: flex; align-items: center;">
                 <a href="/" class="logo">
                     <i class="ri-pages-line"></i>
-                    PPDocs
+                    BaliDocs
                 </a>
                 <div class="document-title">
                     {% if can_edit %}
@@ -666,7 +666,7 @@
         
         if (!newTitle) {
             titleInput.value = 'Untitled Document';
-            document.title = 'Untitled Document - PPDocs';
+            document.title = 'Untitled Document - BaliDocs';
             return;
         }
 
@@ -683,15 +683,15 @@
             const data = await response.json();
             
             if (response.ok) {
-                document.title = `${newTitle} - PPDocs`;
+                document.title = `${newTitle} - BaliDocs`;
                 titleInput.value = newTitle;
             } else {
                 console.error('Failed to update title:', data.error);
-                titleInput.value = document.title.replace(' - PPDocs', '');
+                titleInput.value = document.title.replace(' - BaliDocs', '');
             }
         } catch (error) {
             console.error('Error updating title:', error);
-            titleInput.value = document.title.replace(' - PPDocs', '');
+            titleInput.value = document.title.replace(' - BaliDocs', '');
         }
     }
 
@@ -859,7 +859,7 @@
         if (!titleInput.value) {
             titleInput.value = 'Untitled Document';
         }
-        document.title = `${titleInput.value} - PPDocs`;
+        document.title = `${titleInput.value} - BaliDocs`;
     });
 
     // Clean up WebSocket on page unload

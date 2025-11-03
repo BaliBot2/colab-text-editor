@@ -1,5 +1,6 @@
 # consumers.py
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from app.document.document import ServerDocument
 from channels.db import database_sync_to_async
@@ -22,7 +23,7 @@ class EditorConsumer(AsyncWebsocketConsumer):
             return
 
         self.document = ServerDocument(doc_id=self.doc_id)
-        await self.document.load_or_create_document()
+        await self.document.load_or_create_document(owner=self.scope["user"])
 
         # Join both the document group and personal group
         await self.channel_layer.group_add(
@@ -104,8 +105,9 @@ class EditorConsumer(AsyncWebsocketConsumer):
                 'error': 'Invalid JSON format'
             }))
         except Exception as e:
+            logging.error(f"Error receiving message: {e}")
             await self.send(text_data=json.dumps({
-                'error': str(e)
+                'error': 'An unexpected error occurred.'
             }))
 
     async def cursor_position(self, event):
@@ -138,7 +140,10 @@ class EditorConsumer(AsyncWebsocketConsumer):
             return (document.visibility == 'PUBLIC' or 
                    document.owner == user or 
                    DocumentAccess.objects.filter(document=document, user=user).exists())
-        except Exception:
+        except ServerDocumentModel.DoesNotExist:
+            return False
+        except Exception as e:
+            logging.error(f"Error checking document access: {e}")
             return False
             
     @database_sync_to_async
@@ -152,5 +157,8 @@ class EditorConsumer(AsyncWebsocketConsumer):
                        user=user,
                        access_type='EDITOR'
                    ).exists())
-        except Exception:
+        except ServerDocumentModel.DoesNotExist:
+            return False
+        except Exception as e:
+            logging.error(f"Error checking edit access: {e}")
             return False

@@ -1,4 +1,5 @@
 # views.py
+from django.db import transaction
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
@@ -88,6 +89,7 @@ def home(request):
     })
 
 @login_required(login_url='login')
+@transaction.atomic
 def new_document(request):
     """
     Creates a new document and redirects to the editor
@@ -132,16 +134,21 @@ def login_view(request):
     return render(request, 'login.html')
 
 
+@transaction.atomic
 def register_view(request):
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
         email = request.POST['email']
         
-        if User.objects.filter(username=username).exists():
+        user, created = User.objects.get_or_create(
+            username=username,
+            defaults={'password': password, 'email': email}
+        )
+        
+        if not created:
             return render(request, 'register.html', {'error': 'Username already exists'})
             
-        user = User.objects.create_user(username=username, password=password, email=email)
         login(request, user)
         return redirect('home')
         
@@ -155,6 +162,7 @@ def logout_view(request):
 
 @login_required
 @require_http_methods(["POST"])
+@transaction.atomic
 def share_document(request, doc_id):
     try:
         data = json.loads(request.body)
@@ -206,6 +214,7 @@ def get_shared_users(request, doc_id):
 
 @login_required
 @require_http_methods(["DELETE"])
+@transaction.atomic
 def remove_access(request, access_id):
     try:
         access = DocumentAccess.objects.get(
@@ -219,6 +228,7 @@ def remove_access(request, access_id):
 
 @login_required
 @require_http_methods(["DELETE"])
+@transaction.atomic
 def delete_document(request, doc_id):
     try:
         document = ServerDocument.objects.get(doc_id=doc_id, owner=request.user)
@@ -232,6 +242,7 @@ def delete_document(request, doc_id):
 
 @login_required
 @require_http_methods(["POST"])
+@transaction.atomic
 def update_title(request, doc_id):
     try:
         document = ServerDocument.objects.get(doc_id=doc_id)

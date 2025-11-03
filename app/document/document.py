@@ -1,5 +1,5 @@
 # document/document.py
-
+import logging
 from app.models import ServerDocument as ServerDocumentModel
 from django.core.exceptions import ObjectDoesNotExist
 from secrets import token_urlsafe
@@ -29,7 +29,7 @@ class ServerDocument:
         self.state = {"ops": []}
 
     @sync_to_async
-    def load_or_create_document(self):
+    def load_or_create_document(self, owner=None):
         """
         Loads the document from the database or creates a new one if it does not exist.
         """
@@ -38,8 +38,12 @@ class ServerDocument:
 
         db_doc, created = ServerDocumentModel.objects.get_or_create(
             doc_id=self.id,
-            defaults={'content': {"ops": []}}
+            defaults={'content': {"ops": []}, 'owner': owner}
         )
+        if created and owner:
+            db_doc.owner = owner
+            db_doc.save()
+            
         self.state = db_doc.content
 
     @sync_to_async
@@ -63,7 +67,7 @@ class ServerDocument:
             
             return True
         except Exception as e:
-            print(f"Error handling changes: {e}")
+            logging.error(f"Error handling changes: {e}")
             return False
 
     def _save_to_database(self):
@@ -76,7 +80,7 @@ class ServerDocument:
             db_doc.save()
             return True
         except Exception as e:
-            print(f"Error saving to database: {e}")
+            logging.error(f"Error saving to database: {e}")
             return False
 
 
