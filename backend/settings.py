@@ -126,17 +126,40 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+
 # App specific settings
 
 
+
+
+
 INSTALLED_APPS = [
+
     'daphne',
+
+    'channels',
+
 ] + INSTALLED_APPS
+
+
 
 ASGI_APPLICATION = 'backend.asgi.application'
 
+
+
 CHANNEL_LAYERS = {
+
     "default": {
-        "BACKEND": "channels.layers.InMemoryChannelLayer",
+
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+
+        "CONFIG": {
+
+            "hosts": [("localhost", 6379)],
+
+        },
+
     },
+
 }
